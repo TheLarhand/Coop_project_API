@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from typing import List, Optional
@@ -6,6 +7,16 @@ from datetime import datetime, date
 import secrets
 
 app = FastAPI(title="Task Management API", version="1.0.0")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 security = HTTPBasic()
 
 # Фиксированные пользователи
@@ -67,6 +78,11 @@ class UserProfile(BaseModel):
     name: str
     ava: str
 
+class UserListItem(BaseModel):
+    id: int
+    name: str
+    ava: str
+
 # Функция аутентификации
 def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
     for user_id, user_data in USERS.items():
@@ -98,6 +114,18 @@ def get_user_stats(user_id: int):
     return {"completedTasks": completed, "inWorkTasks": in_work, "failedTasks": failed}
 
 # API эндпоинты
+
+@app.get("/task-api/users", response_model=List[UserListItem])
+async def get_all_users(current_user: int = Depends(get_current_user)):
+    """Получить список всех пользователей"""
+    result = []
+    for user_id, user_data in USERS.items():
+        result.append(UserListItem(
+            id=user_id,
+            name=user_data["name"],
+            ava=user_data["ava"]
+        ))
+    return result
 
 @app.get("/task-api/globalStatistic", response_model=List[UserStatistic])
 async def get_global_statistic():
