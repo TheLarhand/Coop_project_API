@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Query
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from typing import List, Optional
@@ -35,6 +35,10 @@ class TaskUpdate(BaseModel):
 
 class TaskResult(BaseModel):
     result: str
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    ava: Optional[str] = None
 
 class Task(BaseModel):
     taskId: int
@@ -117,6 +121,22 @@ async def get_my_profile(current_user: int = Depends(get_current_user)):
     user_data = USERS[current_user]
     return UserProfile(name=user_data["name"], ava=user_data["ava"])
 
+@app.put("/task-api/updateUser", response_model=UserProfile)
+async def update_user(
+    user_update: UserUpdate, 
+    current_user: int = Depends(get_current_user)
+):
+    """Обновить информацию о текущем пользователе"""
+    user_data = USERS[current_user]
+    
+    # Обновляем только переданные поля
+    update_data = user_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        if field in user_data:
+            user_data[field] = value
+    
+    return UserProfile(name=user_data["name"], ava=user_data["ava"])
+
 @app.get("/task-api/myStatistic", response_model=MyStatistic)
 async def get_my_statistic(current_user: int = Depends(get_current_user)):
     """Получить статистику текущего пользователя"""
@@ -149,10 +169,18 @@ async def create_task(task_data: TaskCreate, current_user: int = Depends(get_cur
     return Task(**new_task)
 
 @app.get("/task-api/delegatedTasks", response_model=List[Task])
-async def get_delegated_tasks(current_user: int = Depends(get_current_user)):
+async def get_delegated_tasks(
+    current_user: int = Depends(get_current_user),
+    start: int = Query(0, ge=0, description="Начальный индекс для пагинации"),
+    limit: int = Query(10, ge=1, le=100, description="Количество задач для возврата")
+):
     """Получить задачи, которые я назначил другим"""
     user_tasks = [task for task in tasks_storage if task["author"] == current_user]
-    return [Task(**task) for task in user_tasks]
+    
+    # Применяем пагинацию
+    paginated_tasks = user_tasks[start:start + limit]
+    
+    return [Task(**task) for task in paginated_tasks]
 
 @app.delete("/task-api/delegatedTasks/{taskId}")
 async def delete_delegated_task(taskId: int, current_user: int = Depends(get_current_user)):
@@ -198,10 +226,18 @@ async def update_delegated_task(
     return Task(**task)
 
 @app.get("/task-api/myTasks", response_model=List[Task])
-async def get_my_tasks(current_user: int = Depends(get_current_user)):
+async def get_my_tasks(
+    current_user: int = Depends(get_current_user),
+    start: int = Query(0, ge=0, description="Начальный индекс для пагинации"),
+    limit: int = Query(10, ge=1, le=100, description="Количество задач для возврата")
+):
     """Получить задачи, которые мне назначили"""
     user_tasks = [task for task in tasks_storage if task["performer"] == current_user]
-    return [Task(**task) for task in user_tasks]
+    
+    # Применяем пагинацию
+    paginated_tasks = user_tasks[start:start + limit]
+    
+    return [Task(**task) for task in paginated_tasks]
 
 @app.put("/task-api/myTasks/{taskId}", response_model=Task)
 async def complete_my_task(

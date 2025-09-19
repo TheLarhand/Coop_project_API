@@ -1,6 +1,6 @@
 # Coop_project_API
 
-### task-api/docs документация
+### localhost:8000/docs документация (нужно открывать в браузере)
 
 ## Сборка
 ### docker build -t student-api .
